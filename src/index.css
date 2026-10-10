@@ -1,0 +1,205 @@
+@import '@fontsource/courier-prime/400.css';
+@import '@fontsource/courier-prime/700.css';
+@import '@fontsource/special-elite/400.css';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Daylight Bureau (Light Theme) */
+  --color-ink: #2b2622;
+  --color-ink-light: #5a524c;
+  --color-ink-faint: #8e837a;
+  --color-ink-rich: #161311;
+
+  --color-paper: #f4eee1;
+  --color-paper-card: #fcf9f2;
+  --color-paper-dark: #ebe3d1;
+  --color-paper-edge: #d8cbb5;
+
+  --color-manila: #e6ce9e;
+  --color-manila-light: #f2dec0;
+  --color-manila-tab: #dbc088;
+  --color-manila-dark: #caa968;
+  --color-manila-shadow: rgba(90, 68, 35, 0.25);
+
+  --color-evidence-red: #c02b2b;
+  --color-evidence-stamp: #b91c1c;
+  --color-evidence-glow: rgba(192, 43, 43, 0.2);
+  --color-evidence-bg: #fee2e2;
+
+  --color-brass: #b8860b;
+  --color-brass-light: #d4a72c;
+  --color-brass-dark: #8c6504;
+
+  --color-smoke: #dfd8cb;
+  --color-smoke-light: #ebe6dc;
+  --color-smoke-dark: #c2baa9;
+  --color-smoke-fog: rgba(223, 216, 203, 0.7);
+
+  --spotlight-opacity: 0.12;
+}
+
+.dark {
+  /* Noir Bureau After-Hours (Dark Theme - Default) */
+  --color-ink: #ded6c9;
+  --color-ink-light: #a89f91;
+  --color-ink-faint: #6e6659;
+  --color-ink-rich: #f5f0e6;
+
+  --color-paper: #1c1815;
+  --color-paper-card: #24201c;
+  --color-paper-dark: #12100e;
+  --color-paper-edge: #332d26;
+
+  --color-manila: #4a3c28;
+  --color-manila-light: #5f4d34;
+  --color-manila-tab: #3d3120;
+  --color-manila-dark: #2a2215;
+  --color-manila-shadow: rgba(0, 0, 0, 0.6);
+
+  --color-evidence-red: #dc2626;
+  --color-evidence-stamp: #ef4444;
+  --color-evidence-glow: rgba(220, 38, 38, 0.35);
+  --color-evidence-bg: rgba(185, 28, 28, 0.15);
+
+  --color-brass: #cca43b;
+  --color-brass-light: #e0be5a;
+  --color-brass-dark: #9e7a1f;
+
+  --color-smoke: #2a2622;
+  --color-smoke-light: #3a3530;
+  --color-smoke-dark: #191614;
+  --color-smoke-fog: rgba(26, 22, 19, 0.85);
+
+  --spotlight-opacity: 0.25;
+}
+
+/* Authentic Paper Grain Background */
+.paper-grain {
+  background-image: 
+    radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 0),
+    radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 0);
+  background-size: 16px 16px, 24px 24px;
+  background-position: 0 0, 8px 8px;
+}
+
+/* Coffee Stain Simulation */
+.coffee-stain {
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.18;
+  border: 4px solid #78350f;
+  box-shadow: 
+    inset 0 0 12px #92400e,
+    0 0 6px #78350f;
+  filter: blur(0.5px);
+  transform: rotate(24deg) skewX(4deg);
+}
+
+.coffee-drip {
+  position: absolute;
+  width: 14px;
+  height: 22px;
+  border-radius: 50% 50% 60% 60%;
+  background: #78350f;
+  opacity: 0.15;
+  filter: blur(0.6px);
+}
+
+/* Classified & Forensic Stamp Styles */
+.stamp-classified {
+  font-family: 'Special Elite', 'Courier Prime', monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  border: 3px dashed var(--color-evidence-stamp);
+  color: var(--color-evidence-stamp);
+  text-shadow: 0 0 1px rgba(220, 38, 38, 0.4);
+  mask-image: radial-gradient(circle at 50% 50%, black 80%, rgba(0, 0, 0, 0.7) 100%);
+  display: inline-block;
+  user-select: none;
+}
+
+.stamp-busted {
+  font-family: 'Special Elite', 'Courier Prime', monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  border: 4px solid var(--color-evidence-stamp);
+  color: var(--color-evidence-stamp);
+  text-shadow: 0 0 2px rgba(239, 68, 68, 0.5);
+  display: inline-block;
+  user-select: none;
+}
+
+/* Paperclip Metal Rendering */
+.paperclip {
+  width: 22px;
+  height: 54px;
+  border: 3px solid #94a3b8;
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  position: absolute;
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.paperclip::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 3px;
+  right: 3px;
+  bottom: 0;
+  border: 2px solid #cbd5e1;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+}
+
+/* Typewriter Underline */
+.typewriter-rule {
+  border-bottom: 1px dashed var(--color-ink-faint);
+}
+
+/* Desk Lamp Radial Overlay */
+.desk-lamp-cone {
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+/* Polygraph Needle Animations */
+@keyframes polygraph-pulse {
+  0% { transform: translateY(0); }
+  25% { transform: translateY(-4px); }
+  50% { transform: translateY(6px); }
+  75% { transform: translateY(-2px); }
+  100% { transform: translateY(0); }
+}
+
+.polygraph-active {
+  animation: polygraph-pulse 0.4s infinite ease-in-out;
+}
+
+/* Respect user's reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .desk-lamp-cone {
+    display: none !important;
+  }
+}
