@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Analytics } from '@vercel/analytics/react';
 import { useCaseStore } from './store/caseStore';
 import { DeskLampLight } from './components/effects/DeskLampLight';
 import { Header } from './components/layout/Header';
@@ -96,9 +95,6 @@ export const App: React.FC = () => {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
       />
-
-      {/* Vercel Web Analytics */}
-      <Analytics />
     </div>
   );
 };
