@@ -50,8 +50,8 @@ export const useCaseStore = create<CaseStoreState>()(
       theme: 'dark',
       hasSeenIntro: false,
       apiSettings: {
-        useMockMode: true,
-        lambdaEndpointUrl: '',
+        useMockMode: false,
+        lambdaEndpointUrl: 'https://faedmk2b5wb2icvfzfxxcnqdhm0pogln.lambda-url.us-east-1.on.aws/',
         apiKey: '',
         simulatedDelayMs: 1400,
       },
