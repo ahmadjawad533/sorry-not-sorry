@@ -9,6 +9,7 @@ import {
   Sliders,
   Sparkles,
 } from 'lucide-react';
+import { isMockMode } from '../../services/apiService';
 import { useCaseStore } from '../../store/caseStore';
 
 interface HeaderProps {
@@ -26,8 +27,9 @@ export const Header: React.FC<HeaderProps> = ({
     soundEnabled,
     toggleSound,
     archives,
-    apiSettings,
   } = useCaseStore();
+
+  const inMock = isMockMode();
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-paper-edge/50 bg-paper/85 dark:bg-paper-dark/90 backdrop-blur-md px-4 sm:px-6 py-3 transition-colors duration-300">
@@ -62,9 +64,9 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onOpenSettings}
             className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono rounded border transition-colors border-paper-edge bg-paper-card text-ink-light hover:text-ink hover:border-brass/60"
-            title="Configure Bureau Backend (Mock / AWS Lambda)"
+            title="Bureau Backend Status (Mock / AWS Lambda)"
           >
-            {apiSettings.useMockMode || !apiSettings.lambdaEndpointUrl ? (
+            {inMock ? (
               <>
                 <Sparkles className="w-3.5 h-3.5 text-brass" />
                 <span className="hidden sm:inline">Mock Bureau</span>

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { CaseFile, ApiSettings } from '../types/case';
+import { CaseFile } from '../types/case';
 import { ApiService } from '../services/apiService';
 import { soundEffects } from '../services/soundEffects';
 
@@ -13,13 +13,13 @@ interface CaseStoreState {
   draftExcuse: string;
   errorMessage: string | null;
   investigationStepIndex: number;
+  simulatedDelayMs: number;
 
   // Persisted state
   archives: CaseFile[];
   soundEnabled: boolean;
   theme: 'dark' | 'light';
   hasSeenIntro: boolean;
-  apiSettings: ApiSettings;
 
   // Actions
   setDraftExcuse: (text: string) => void;
@@ -32,7 +32,7 @@ interface CaseStoreState {
   toggleSound: () => void;
   toggleTheme: () => void;
   dismissIntro: () => void;
-  updateApiSettings: (settings: Partial<ApiSettings>) => void;
+  setSimulatedDelayMs: (ms: number) => void;
   setInvestigationStepIndex: (step: number) => void;
 }
 
@@ -44,17 +44,12 @@ export const useCaseStore = create<CaseStoreState>()(
       draftExcuse: '',
       errorMessage: null,
       investigationStepIndex: 0,
+      simulatedDelayMs: 1400,
 
       archives: [],
       soundEnabled: !soundEffects.getIsMuted(),
       theme: 'dark',
       hasSeenIntro: false,
-      apiSettings: {
-        useMockMode: false,
-        lambdaEndpointUrl: 'https://faedmk2b5wb2icvfzfxxcnqdhm0pogln.lambda-url.us-east-1.on.aws/',
-        apiKey: '',
-        simulatedDelayMs: 1400,
-      },
 
       setDraftExcuse: (text: string) => {
         set({ draftExcuse: text });
@@ -74,7 +69,7 @@ export const useCaseStore = create<CaseStoreState>()(
         try {
           const caseFile = await ApiService.analyzeExcuse(
             { excuse },
-            get().apiSettings
+            get().simulatedDelayMs
           );
 
           // Add to archives (avoid duplicates, max 30)
@@ -154,13 +149,8 @@ export const useCaseStore = create<CaseStoreState>()(
         set({ hasSeenIntro: true });
       },
 
-      updateApiSettings: (newSettings: Partial<ApiSettings>) => {
-        set((state) => ({
-          apiSettings: {
-            ...state.apiSettings,
-            ...newSettings,
-          },
-        }));
+      setSimulatedDelayMs: (ms: number) => {
+        set({ simulatedDelayMs: ms });
       },
 
       setInvestigationStepIndex: (step: number) => {
@@ -174,7 +164,6 @@ export const useCaseStore = create<CaseStoreState>()(
         soundEnabled: state.soundEnabled,
         theme: state.theme,
         hasSeenIntro: state.hasSeenIntro,
-        apiSettings: state.apiSettings,
       }),
     }
   )

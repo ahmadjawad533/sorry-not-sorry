@@ -1,463 +1,555 @@
 import {
   CaseFile,
   AnalyzeExcuseRequest,
-  ApiSettings,
-  VerdictClassification,
+  InvestigateResponse,
+  InvestigateResponseSchema,
+  ShameResponse,
+  ShameResponseSchema,
+  BackendErrorSchema,
   EvidenceCard,
+  ForensicMetrics,
+  ForensicVerdict,
+  BackendVerdict,
 } from '../types/case';
 
-// Heuristic excuse analysis for the Mock Bureau
-export function analyzeExcuseMock(statement: string): CaseFile {
-  const text = statement.trim();
-  const lower = text.toLowerCase();
+// Base URL comes ONLY from import.meta.env.VITE_API_URL (strip any trailing slash)
+export const getApiBaseUrl = (): string => {
+  const raw = (import.meta.env.VITE_API_URL as string | undefined) || '';
+  return raw.replace(/\/+$/, '');
+};
 
-  const caseNum = Math.floor(1000 + Math.random() * 9000);
-  const badgeNum = 'BADGE #47-DET. VANCE';
-  const sealNum = `SF-PD-${Math.floor(100000 + Math.random() * 900000)}`;
-  const now = new Date().toISOString();
+// Mock mode ONLY when VITE_USE_MOCK=true or VITE_API_URL is empty
+export const isMockMode = (): boolean => {
+  return import.meta.env.VITE_USE_MOCK === 'true' || !getApiBaseUrl();
+};
 
-  // Keyword flags
-  const hasAlarm = lower.includes('alarm') || lower.includes('slept in') || lower.includes('wake up');
-  const hasPet = lower.includes('cat') || lower.includes('dog') || lower.includes('vet') || lower.includes('pet');
-  const hasTraffic = lower.includes('traffic') || lower.includes('highway') || lower.includes('car') || lower.includes('tire') || lower.includes('flat') || lower.includes('accident');
-  const hasTech = lower.includes('wifi') || lower.includes('internet') || lower.includes('phone') || lower.includes('battery') || lower.includes('slack') || lower.includes('zoom') || lower.includes('laptop') || lower.includes('email');
-  const hasRelative = lower.includes('grandma') || lower.includes('grandpa') || lower.includes('cousin') || lower.includes('family') || lower.includes('uncle') || lower.includes('aunt');
-  const hasHealth = lower.includes('sick') || lower.includes('food poisoning') || lower.includes('fever') || lower.includes('stomach') || lower.includes('headache') || lower.includes('migraine');
-  const isMultiLayered = lower.includes('and then') || lower.includes('on top of that') || (lower.match(/and/g) || []).length >= 2;
-  const isTooShort = text.length < 15;
-  const isRambling = text.length > 250;
+// ==========================================
+// CLIENT-SIDE DERIVATIONS FOR UI FIELDS
+// ==========================================
 
-  let classification: VerdictClassification = 'BUSTED';
-  let stampText = 'COLD HARD FICTION';
-  let believabilityScore = 18;
-  let summary = '';
-  let secondaryTagline = 'THE NUMBERS DO NOT ADD UP, KID.';
-  const evidenceCards: EvidenceCard[] = [];
-  let detectiveNotes = '';
-  const recommendedRebuttal: string[] = [];
-
-  let clicheLevel = 75;
-  let creativeEffort = 30;
-  let audacityRating = 80;
-  let plausibilityIndex = 20;
-
-  if (hasAlarm && hasPet) {
-    classification = 'BUSTED';
-    stampText = 'BUSTED: DOUBLE DEFENSE';
-    believabilityScore = 12;
-    clicheLevel = 98;
-    audacityRating = 92;
-    plausibilityIndex = 14;
-    creativeEffort = 25;
-    summary = 'The classic "Mechanical Clock & Innocent Beast" tandem defense. Stacking independent failure events is the hallmark of an improvised panic fib.';
-    secondaryTagline = 'TWO INDEPENDENT TRAGEDIES. ZERO CREDIBILITY.';
-    evidenceCards.push(
-      {
-        id: 'ev-1',
-        title: 'Temporal Impossibility',
-        severity: 'CRITICAL',
-        category: 'temporal',
-        finding: 'The chances of a silicon quartz oscillator and a domestic animal failing synchronously are 1 in 84,000.',
-      },
-      {
-        id: 'ev-2',
-        title: 'Feline/Canine Scapegoating',
-        severity: 'HIGH',
-        category: 'alibi',
-        finding: 'The animal was reported peacefully snoozing on the carpet at the approximate time of the alleged emergency.',
-      },
-      {
-        id: 'ev-3',
-        title: 'Panic Compounding',
-        severity: 'MEDIUM',
-        category: 'psychology',
-        finding: 'Noticeable use of conjunction "and then" indicates narrative escalation invented mid-sentence.',
-      }
-    );
-    detectiveNotes = 'I\'ve heard cleaner bedtime stories from pickpockets at the ferry terminal. If you\'re going to fabricate an alibi, don\'t drag a loyal house pet into court with you.';
-    recommendedRebuttal.push(
-      '"Send over the vet billing statement and your alarm clock\'s battery diagnostic log by noon."',
-      '"Next time just say you wanted a second cup of coffee. The cat didn\'t ask to be your fall guy."',
-      '"Our forensics unit cross-referenced this. The cat called us 10 minutes ago to clear its name."'
-    );
-  } else if (hasPet) {
-    classification = 'HIGHLY_SUSPECT';
-    stampText = 'SUSPECT: PET SHIELD';
-    believabilityScore = 24;
-    clicheLevel = 90;
-    audacityRating = 78;
-    plausibilityIndex = 28;
-    creativeEffort = 35;
-    summary = 'Exploiting mammalian loyalty for personal unaccountability. The animal cannot testify in its own defense.';
-    secondaryTagline = 'LEAVE THE DOG OUT OF THIS.';
-    evidenceCards.push(
-      {
-        id: 'ev-1',
-        title: 'Convenient Illness Timing',
-        severity: 'HIGH',
-        category: 'temporal',
-        finding: 'Pet ailments reliably peak between 8:45 AM and 9:15 AM on key deliverable deadlines.',
-      },
-      {
-        id: 'ev-2',
-        title: 'Witness Silence Pact',
-        severity: 'MEDIUM',
-        category: 'alibi',
-        finding: 'Primary co-defendant lacks vocal apparatus to dispute ownership of the narrative.',
-      }
-    );
-    detectiveNotes = 'A dog will take a bullet for you, and here you are taking away its good standing with society. Case closed on moral grounds alone.';
-    recommendedRebuttal.push(
-      '"Give the animal a scratch behind the ears from me, then email me the draft."',
-      '"I hope the four-legged suspect makes a swift recovery. We will await the vet discharge paperwork."'
-    );
-  } else if (hasTraffic) {
-    classification = 'CRIMINALLY_UNCREATIVE';
-    stampText = 'CHEAP DODGE: TRAFFIC';
-    believabilityScore = 38;
-    clicheLevel = 95;
-    audacityRating = 45;
-    plausibilityIndex = 42;
-    creativeEffort = 12;
-    summary = 'The urban commuter\'s lazy trump card. Everyone knows the highway is choked, which is why prudent citizens leave early.';
-    secondaryTagline = 'A TIRED STORY IN A TIRED TOWN.';
-    evidenceCards.push(
-      {
-        id: 'ev-1',
-        title: 'Predictability Coefficient',
-        severity: 'HIGH',
-        category: 'temporal',
-        finding: 'Traffic existed yesterday. It will exist tomorrow. Failure to account for reality is not an act of God.',
-      },
-      {
-        id: 'ev-2',
-        title: 'GPS Audit Absence',
-        severity: 'MEDIUM',
-        category: 'alibi',
-        finding: 'Noticeable absence of a real-time navigation screenshot timestamped prior to departure.',
-      }
-    );
-    detectiveNotes = 'Traffic? Rain falls, smoke rises, cars stop on the bridge. Give me an excuse that required at least thirty seconds of sweat to invent.';
-    recommendedRebuttal.push(
-      '"The city grid has been congested since 1923. You\'re 40 minutes late."',
-      '"Waze said the road was green until you put your shoes on at 9:02 AM."'
-    );
-  } else if (hasTech) {
-    classification = 'HIGHLY_SUSPECT';
-    stampText = 'SUSPECT: GHOST PACKET';
-    believabilityScore = 31;
-    clicheLevel = 88;
-    audacityRating = 65;
-    plausibilityIndex = 35;
-    creativeEffort = 40;
-    summary = 'Blaming fiber-optic cables for organic tardiness. The modern equivalent of saying the carrier pigeon got shot down.';
-    secondaryTagline = 'WIFI DOWN? YOUR STORY IS LEAKING.';
-    evidenceCards.push(
-      {
-        id: 'ev-1',
-        title: 'Router Log Discrepancy',
-        severity: 'HIGH',
-        category: 'temporal',
-        finding: 'Suspect was visibly online on Instagram liking espresso photos while Slack was supposedly unreachable.',
-      },
-      {
-        id: 'ev-2',
-        title: 'Selective Outage Pattern',
-        severity: 'MEDIUM',
-        category: 'linguistics',
-        finding: 'Internet connections never fail during lunch; they only collapse during client standups.',
-      }
-    );
-    detectiveNotes = 'The router lights were blinking green while the excuses were blinking red. You can\'t hide behind bandwidth in my precinct.';
-    recommendedRebuttal.push(
-      '"Funny how your LTE hotspot worked well enough to send this message in 4K."',
-      '"I\'ll send the IT technician over to your desk. She charges by the eyebrow raise."'
-    );
-  } else if (hasRelative) {
-    classification = 'UNVERIFIABLE';
-    stampText = 'UNVERIFIED KIN DEFENSE';
-    believabilityScore = 44;
-    clicheLevel = 82;
-    audacityRating = 70;
-    plausibilityIndex = 48;
-    creativeEffort = 55;
-    summary = 'Calling upon distant genealogy to obscure personal calendar negligence. High emotional shield, low corroboration.';
-    secondaryTagline = 'GRANDMA WOULD LIKE A WORD WITH YOU.';
-    evidenceCards.push(
-      {
-        id: 'ev-1',
-        title: 'Genealogical Convenience',
-        severity: 'MEDIUM',
-        category: 'alibi',
-        finding: 'Relative in question has suffered four independent emergencies across the current fiscal quarter.',
-      },
-      {
-        id: 'ev-2',
-        title: 'Emotional Leverage Factor',
-        severity: 'HIGH',
-        category: 'psychology',
-        finding: 'Designed to induce polite hesitation in the recipient to prevent further inquiry.',
-      }
-    );
-    detectiveNotes = 'Invoking blood relatives is high stakes gambling. One day the family reunion will happen, and the ledger will be opened.';
-    recommendedRebuttal.push(
-      '"Send my regards to Aunt Martha. Tell her we missed her at the sprint planning."',
-      '"I hope everything is settled on the home front. We can resume the grilling tomorrow."'
-    );
-  } else if (hasHealth) {
-    classification = 'PLAUSIBLE';
-    stampText = 'PROVISIONAL PASS: BIOLOGICAL';
-    believabilityScore = 58;
-    clicheLevel = 60;
-    audacityRating = 40;
-    plausibilityIndex = 65;
-    creativeEffort = 30;
-    summary = 'A biological vulnerability claimed with sufficient brevity. We allow the suspect bail on humanitarian grounds, pending symptoms.';
-    secondaryTagline = 'THE PRECINCT DOCTOR WILL KEEP WATCH.';
-    evidenceCards.push(
-      {
-        id: 'ev-1',
-        title: 'Pathogen Veracity',
-        severity: 'LOW',
-        category: 'biometric',
-        finding: 'Brevity works in suspect\'s favor. Detailed descriptions of bodily fluids correlate with fabrication; silence suggests genuine misery.',
-      }
-    );
-    detectiveNotes = 'I\'m a detective, not a coroner. Take your aspirin and get out of the cold rain. But don\'t pull this stunt next Monday.';
-    recommendedRebuttal.push(
-      '"Drink fluids, stay warm, and don\'t look at spreadsheets until tomorrow."',
-      '"We grant clemency this once. Return with a clear conscience and a negative test."'
-    );
-  } else if (isMultiLayered || isRambling) {
-    classification = 'BUSTED';
-    stampText = 'BUSTED: OVER-EXPLAINING';
-    believabilityScore = 16;
-    clicheLevel = 92;
-    audacityRating = 94;
-    plausibilityIndex = 18;
-    creativeEffort = 65;
-    summary = 'The suspect is weaving a tapestry when a simple thread was requested. Over-explaining is the dead giveaway of a guilty conscience.';
-    secondaryTagline = 'THE MORE YOU TALK, THE DEEPER THE GRAVE.';
-    evidenceCards.push(
-      {
-        id: 'ev-1',
-        title: 'Linguistic Clutter Index',
-        severity: 'CRITICAL',
-        category: 'linguistics',
-        finding: 'Too many moving parts. Alibis collapse under the weight of their own unnecessary clauses.',
-      },
-      {
-        id: 'ev-2',
-        title: 'Defensive Narrative Architecture',
-        severity: 'HIGH',
-        category: 'psychology',
-        finding: 'Subject is preemptively answering questions nobody asked yet.',
-      }
-    );
-    detectiveNotes = 'Shakespeare wrote shorter soliloquies than this alibi. A guilty soul paints the fence twice before anyone inspects the wood.';
-    recommendedRebuttal.push(
-      '"You could have stopped at the first sentence, but you had to build an entire theatrical production."',
-      '"I\'ll read chapter two after lunch. Until then, you owe us donuts."'
-    );
-  } else if (isTooShort) {
-    classification = 'HIGHLY_SUSPECT';
-    stampText = 'DEFICIENT STATEMENT';
-    believabilityScore = 35;
-    clicheLevel = 65;
-    audacityRating = 85;
-    plausibilityIndex = 30;
-    creativeEffort = 8;
-    summary = 'Laconic disrespect. Suspect gave so little effort they practically handed over the handcuffs.';
-    secondaryTagline = 'NOT ENOUGH MEAT ON THESE BONES.';
-    evidenceCards.push(
-      {
-        id: 'ev-1',
-        title: 'Severe Statement Starvation',
-        severity: 'HIGH',
-        category: 'linguistics',
-        finding: 'Barely fifteen characters. Suspect couldn\'t even bother to fabricate a plausible noun.',
-      }
-    );
-    detectiveNotes = 'I\'ve seen telegraph cables from the 1890s with more emotional investment than this half-hearted whisper.';
-    recommendedRebuttal.push(
-      '"Use your words, suspect. You\'re among professionals."',
-      '"Care to add a verb to that haiku?"'
-    );
-  } else {
-    // Default mysterious / custom excuse
-    classification = 'BUSTED';
-    stampText = 'COLD HARD FICTION';
-    believabilityScore = 22;
-    clicheLevel = 70;
-    audacityRating = 82;
-    plausibilityIndex = 25;
-    creativeEffort = 45;
-    summary = 'The story has holes you could sail an oil tanker through. Our crime lab ran the syntax through the archives and found zero precedent for truth.';
-    secondaryTagline = 'SMOKE AND MIRRORS ON RAINY COBBLESTONES.';
-    evidenceCards.push(
-      {
-        id: 'ev-1',
-        title: 'Structural Fabrications Detected',
-        severity: 'HIGH',
-        category: 'psychology',
-        finding: 'Plausibility drops sharply upon external scrutiny. Tone exhibits defensive deflection.',
-      },
-      {
-        id: 'ev-2',
-        title: 'Convenient Chain of Circumstance',
-        severity: 'MEDIUM',
-        category: 'temporal',
-        finding: 'Misfortunes did not arise until precisely the moment accountability was expected.',
-      }
-    );
-    detectiveNotes = 'I walked the beat in the rain for forty years. I know the scent of stale tobacco, burnt coffee, and an excuse cooked up in a moving elevator.';
-    recommendedRebuttal.push(
-      '"A thrilling tale. Have you considered pitching it to a publisher?"',
-      '"The precinct has processed your excuse. The verdict is guilty of wasting good coffee."'
-    );
+export function deriveStampText(verdict: BackendVerdict): string {
+  switch (verdict) {
+    case 'BUSTED':
+      return 'BUSTED: FICTION';
+    case 'SUSPICIOUS':
+      return 'HIGHLY SUSPECT';
+    case 'PLAUSIBLE':
+      return 'PLAUSIBLE DEFENSE';
+    case 'CREDIBLE':
+      return 'ALIBI CONFIRMED';
   }
+}
 
-  // Add standard concluding evidence card if under 3
-  if (evidenceCards.length < 3) {
-    evidenceCards.push({
-      id: 'ev-supplemental',
-      title: 'Forensic Body Language Emulation',
-      severity: 'MEDIUM',
-      category: 'linguistics',
-      finding: 'Digital cadence shows rapid typing followed by hesitant backspacing before dispatch.',
-    });
+export function deriveSecondaryTagline(verdict: BackendVerdict): string {
+  switch (verdict) {
+    case 'BUSTED':
+      return 'THE NUMBERS DO NOT ADD UP, KID.';
+    case 'SUSPICIOUS':
+      return 'TOO MANY LOOSE THREADS ON THIS ALIBI.';
+    case 'PLAUSIBLE':
+      return 'SURVIVES FORENSIC SCRUTINY FOR NOW.';
+    case 'CREDIBLE':
+      return 'WATERPROOF STORY. YOU ARE FREE TO GO.';
   }
+}
+
+export function deriveMetrics(
+  believability: number,
+  patterns: InvestigateResponse['patterns'],
+  excuse: string
+): ForensicMetrics {
+  const patternCount = patterns.length;
+  const avgConfidence = patternCount > 0
+    ? Math.round(patterns.reduce((acc, p) => acc + p.confidence, 0) / patternCount)
+    : 50;
 
   return {
-    caseId: `CASE-1947-${caseNum}`,
-    timestamp: now,
-    suspectStatement: text,
-    suspectAlias: 'Unknown Perpetrator',
-    believabilityScore,
-    verdict: {
-      classification,
-      stampText,
-      summary,
-      secondaryTagline,
-    },
-    metrics: {
-      plausibilityIndex,
-      creativeEffort,
-      audacityRating,
-      clicheLevel,
-    },
-    evidenceCards,
-    detectiveNotes,
-    recommendedRebuttal,
-    investigatorBadge: badgeNum,
-    bureauSealNumber: sealNum,
+    plausibilityIndex: believability,
+    creativeEffort: Math.min(100, Math.max(10, Math.round(excuse.length / 3) + (patternCount * 12))),
+    audacityRating: Math.max(5, 100 - believability),
+    clicheLevel: Math.min(100, Math.max(20, Math.round(avgConfidence * 0.95))),
   };
 }
 
+export function deriveEvidenceCards(patterns: InvestigateResponse['patterns']): EvidenceCard[] {
+  return patterns.map((p) => {
+    const isRepeat = p.id === 'repeat-offender';
+
+    let category: EvidenceCard['category'] = 'linguistics';
+    const lowerId = p.id.toLowerCase();
+    const lowerTitle = p.title.toLowerCase();
+
+    if (lowerId.includes('time') || lowerId.includes('alarm') || lowerTitle.includes('temporal') || lowerTitle.includes('time')) {
+      category = 'temporal';
+    } else if (lowerId.includes('pet') || lowerId.includes('health') || lowerId.includes('sick') || lowerTitle.includes('feline') || lowerTitle.includes('biological')) {
+      category = 'biometric';
+    } else if (lowerId.includes('alibi') || lowerId.includes('traffic') || lowerId.includes('gps')) {
+      category = 'alibi';
+    } else if (lowerId.includes('psych') || lowerId.includes('panic') || lowerId.includes('repeat')) {
+      category = 'psychology';
+    }
+
+    let severity: EvidenceCard['severity'] = 'LOW';
+    if (isRepeat || p.confidence >= 80) {
+      severity = 'CRITICAL';
+    } else if (p.confidence >= 60) {
+      severity = 'HIGH';
+    } else if (p.confidence >= 40) {
+      severity = 'MEDIUM';
+    }
+
+    return {
+      id: p.id,
+      title: p.title,
+      finding: p.commentary,
+      confidence: p.confidence,
+      severity,
+      category,
+      isRepeatOffender: isRepeat,
+    };
+  });
+}
+
+export function deriveRebuttals(
+  verdict: BackendVerdict,
+  patterns: InvestigateResponse['patterns'],
+  _excuse: string
+): string[] {
+  const hasRepeat = patterns.some((p) => p.id === 'repeat-offender');
+  const rebuttals: string[] = [];
+
+  if (hasRepeat) {
+    rebuttals.push('"Our precinct blotter logged this exact story last week. Try a new tune."');
+  }
+
+  switch (verdict) {
+    case 'BUSTED':
+      rebuttals.push(
+        '"Send over the invoice receipts and battery diagnostic logs by noon."',
+        '"Next time, just admit you wanted a second espresso before the polygraph needle jumps."'
+      );
+      break;
+    case 'SUSPICIOUS':
+      rebuttals.push(
+        '"A thrilling tale with too many moving parts. Care to simplify before we subpoena your router?"',
+        '"We grant conditional bail pending witness testimony from your calendar."'
+      );
+      break;
+    case 'PLAUSIBLE':
+      rebuttals.push(
+        '"Your story survives forensic scrutiny for today. Drink plenty of fluids."',
+        '"The precinct grants clemency this once. Return with a clear conscience."'
+      );
+      break;
+    case 'CREDIBLE':
+      rebuttals.push(
+        '"Unusual, but mathematically sound. Case dismissed with apologies."',
+        '"Your alibi checks out on all frequencies. Carry on, citizen."'
+      );
+      break;
+  }
+
+  return rebuttals.slice(0, 3);
+}
+
+// Convert backend response into UI CaseFile
+export function mapBackendResponseToCaseFile(
+  excuse: string,
+  res: InvestigateResponse
+): CaseFile {
+  const stampText = deriveStampText(res.verdict);
+  const secondaryTagline = deriveSecondaryTagline(res.verdict);
+  const metrics = deriveMetrics(res.believability, res.patterns, excuse);
+  const evidenceCards = deriveEvidenceCards(res.patterns);
+  const recommendedRebuttal = deriveRebuttals(res.verdict, res.patterns, excuse);
+
+  const forensicVerdict: ForensicVerdict = {
+    classification: res.verdict,
+    stampText,
+    summary: res.notes.slice(0, 160),
+    secondaryTagline,
+  };
+
+  return {
+    caseId: res.caseId,
+    timestamp: res.createdAt,
+    suspectStatement: excuse,
+    suspectAlias: 'Unknown Perpetrator',
+    believabilityScore: res.believability,
+    verdict: forensicVerdict,
+    metrics,
+    evidenceCards,
+    detectiveNotes: res.notes,
+    recommendedRebuttal,
+    investigatorBadge: 'BADGE #47-DET. VANCE',
+    bureauSealNumber: `SF-PD-${Math.floor(100000 + Math.random() * 900000)}`,
+  };
+}
+
+// ==========================================
+// MOCK BUREAU IMPLEMENTATION
+// (Conforms strictly to { caseId, believability, verdict, patterns, notes, createdAt })
+// ==========================================
+
+export function analyzeExcuseMock(statement: string): InvestigateResponse {
+  const text = (statement || '').trim();
+  const lower = text.toLowerCase();
+  const now = new Date().toISOString();
+  const caseId = `CASE-1947-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  const hasAlarm = lower.includes('alarm') || lower.includes('slept in') || lower.includes('wake up');
+  const hasPet = lower.includes('cat') || lower.includes('dog') || lower.includes('vet') || lower.includes('pet');
+  const hasTraffic = lower.includes('traffic') || lower.includes('highway') || lower.includes('car') || lower.includes('flat') || lower.includes('accident');
+  const hasTech = lower.includes('wifi') || lower.includes('internet') || lower.includes('phone') || lower.includes('battery') || lower.includes('slack');
+  const hasRelative = lower.includes('grandma') || lower.includes('grandpa') || lower.includes('cousin') || lower.includes('family');
+  const hasHealth = lower.includes('sick') || lower.includes('fever') || lower.includes('headache') || lower.includes('migraine');
+  const isMultiLayered = lower.includes('and then') || (lower.match(/and/g) || []).length >= 2;
+  const isTooShort = text.length < 15;
+  const isRepeatSuspect = lower.includes('never got') || lower.includes("didn't see") || lower.includes('again');
+
+  let verdict: BackendVerdict = 'BUSTED';
+  let believability = 18;
+  const patterns: InvestigateResponse['patterns'] = [];
+  let notes = '';
+
+  if (isRepeatSuspect) {
+    verdict = 'BUSTED';
+    believability = 8;
+    patterns.push(
+      {
+        id: 'repeat-offender',
+        title: 'Chronic Precinct Recidivism',
+        commentary: 'Suspect exhibits an identical pattern of notification evasion previously logged in precinct archives.',
+        confidence: 96,
+      },
+      {
+        id: 'digital-amnesia',
+        title: 'Selective Digital Deafness',
+        commentary: 'Suspect claims communication silence precisely during hours of highest accountability.',
+        confidence: 84,
+      }
+    );
+    notes = "I've pulled this rap sheet before. When a suspect claims notification failure more than once, it is no longer technical friction—it is an art form.";
+  } else if (hasAlarm && hasPet) {
+    verdict = 'BUSTED';
+    believability = 12;
+    patterns.push(
+      {
+        id: 'temporal-synchronicity',
+        title: 'Temporal Impossibility',
+        commentary: 'A silicon alarm oscillator and a domestic quadruped failing simultaneously defy statistical probability.',
+        confidence: 94,
+      },
+      {
+        id: 'feline-fall-guy',
+        title: 'Feline Scapegoating Strategy',
+        commentary: 'Pet was reported sleeping soundly during the alleged morning crisis.',
+        confidence: 89,
+      },
+      {
+        id: 'conjunction-overload',
+        title: 'Panic Compounding ("And Then")',
+        commentary: 'Use of multiple conjunctions signals spontaneous narrative escalation.',
+        confidence: 76,
+      }
+    );
+    notes = "I've heard cleaner bedtime stories from dockworkers in Oakland. If you're going to spin an alibi, don't drag an innocent house cat into court with you.";
+  } else if (hasTraffic) {
+    verdict = 'SUSPICIOUS';
+    believability = 38;
+    patterns.push(
+      {
+        id: 'gridlock-cliche',
+        title: 'Predictability Coefficient',
+        commentary: 'Highway congestion has existed since Henry Ford. Failure to plan is not an act of God.',
+        confidence: 82,
+      },
+      {
+        id: 'gps-unverified',
+        title: 'GPS Telemetry Void',
+        commentary: 'Noticeable absence of navigation map screenshots timestamped prior to scheduled departure.',
+        confidence: 71,
+      }
+    );
+    notes = 'Traffic is a tired excuse in a tired city. Rain falls, smoke rises, cars stop on bridges. Bring me something that required real imagination.';
+  } else if (hasTech) {
+    verdict = 'SUSPICIOUS';
+    believability = 32;
+    patterns.push(
+      {
+        id: 'ghost-packet',
+        title: 'Selective Outage Pattern',
+        commentary: 'Bandwidth never collapses during streaming breaks; it only dies during client standups.',
+        confidence: 85,
+      },
+      {
+        id: 'device-telemetry',
+        title: 'Router Log Discrepancy',
+        commentary: 'External activity timestamps contradict claims of total connectivity blackout.',
+        confidence: 68,
+      }
+    );
+    notes = "The router lights were green while the excuse was glowing red. You can't hide behind fiber optics in my precinct.";
+  } else if (hasRelative) {
+    verdict = 'SUSPICIOUS';
+    believability = 42;
+    patterns.push(
+      {
+        id: 'kin-shield',
+        title: 'Genealogical Convenience',
+        commentary: 'Invoking distant family emergencies to erect a polite emotional shield against scrutiny.',
+        confidence: 75,
+      }
+    );
+    notes = 'Invoking distant relatives is a high-stakes gamble. One day the family reunion happens, and the ledger is opened.';
+  } else if (hasHealth) {
+    verdict = 'PLAUSIBLE';
+    believability = 58;
+    patterns.push(
+      {
+        id: 'biological-brevity',
+        title: 'Pathogen Veracity Index',
+        commentary: 'Brevity supports the claim. Suspect refrained from suspicious over-elaboration of symptoms.',
+        confidence: 64,
+      }
+    );
+    notes = "I'm a detective, not a coroner. Take your aspirin and get out of the cold rain. But don't pull this stunt next Monday.";
+  } else if (isMultiLayered) {
+    verdict = 'BUSTED';
+    believability = 15;
+    patterns.push(
+      {
+        id: 'over-explaining',
+        title: 'Linguistic Clutter Index',
+        commentary: 'Too many moving clauses. Alibis crumble under the dead weight of defensive narrative architecture.',
+        confidence: 91,
+      }
+    );
+    notes = 'Shakespeare wrote shorter soliloquies than this excuse. A guilty soul paints the fence twice before anyone inspects the wood.';
+  } else if (isTooShort) {
+    verdict = 'SUSPICIOUS';
+    believability = 35;
+    patterns.push(
+      {
+        id: 'laconic-dodge',
+        title: 'Severe Statement Starvation',
+        commentary: 'Suspect gave so little effort they practically handed over the handcuffs.',
+        confidence: 80,
+      }
+    );
+    notes = "I've seen telegrams from 1890 with more emotional investment than this half-hearted whisper.";
+  } else {
+    verdict = 'BUSTED';
+    believability = 22;
+    patterns.push(
+      {
+        id: 'fabrication-syntax',
+        title: 'Structural Fabrication Detected',
+        commentary: 'Statement syntax exhibits classic defensive deflection upon forensic analysis.',
+        confidence: 78,
+      },
+      {
+        id: 'timing-anomaly',
+        title: 'Circumstantial Timing Anomaly',
+        commentary: 'Misfortune arose at the precise moment accountability was expected.',
+        confidence: 72,
+      }
+    );
+    notes = 'I walked the beat in the rain for forty years. I know the scent of stale tobacco, burnt coffee, and an excuse cooked up in a moving elevator.';
+  }
+
+  return {
+    caseId,
+    believability,
+    verdict,
+    patterns,
+    notes,
+    createdAt: now,
+  };
+}
+
+// Mock items for GET /shame
+export function getMockWallOfShame(): ShameResponse {
+  return {
+    items: [
+      {
+        excuse: "My alarm didn't go off and then my cat got sick",
+        believability: 12,
+        verdict: 'BUSTED',
+        createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+      },
+      {
+        excuse: "Slack ate my message, I typed out the whole response yesterday",
+        believability: 18,
+        verdict: 'BUSTED',
+        createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+      },
+      {
+        excuse: "Traffic on the bridge was stalled due to an overturned produce truck",
+        believability: 38,
+        verdict: 'SUSPICIOUS',
+        createdAt: new Date(Date.now() - 3600000 * 8).toISOString(),
+      },
+      {
+        excuse: "Sudden migraine after staring at the spreadsheet layout",
+        believability: 58,
+        verdict: 'PLAUSIBLE',
+        createdAt: new Date(Date.now() - 3600000 * 14).toISOString(),
+      },
+      {
+        excuse: "My router caught fire right as the demo started",
+        believability: 25,
+        verdict: 'BUSTED',
+        createdAt: new Date(Date.now() - 3600000 * 22).toISOString(),
+      },
+    ],
+  };
+}
+
+// ==========================================
+// API CLIENT
+// ==========================================
+
 export class ApiService {
+  /**
+   * POST ${base}/investigate
+   */
   public static async analyzeExcuse(
     req: AnalyzeExcuseRequest,
-    settings: ApiSettings
+    simulatedDelayMs: number = 1400
   ): Promise<CaseFile> {
-    if (settings.useMockMode || !settings.lambdaEndpointUrl.trim()) {
-      // Simulate forensic bureau processing time (min 1.2s to 1.6s)
-      const delay = Math.max(1200, settings.simulatedDelayMs || 1400);
+    const excuse = req.excuse.trim();
+    if (!excuse) {
+      throw new Error("The suspect did not provide a statement to interrogate.");
+    }
+
+    // 1. Mock Mode Check (Mock mode ONLY when VITE_USE_MOCK=true or VITE_API_URL is empty)
+    if (isMockMode()) {
+      const delay = Math.max(1200, simulatedDelayMs);
       await new Promise((res) => setTimeout(res, delay));
-      return analyzeExcuseMock(req.excuse);
+      const mockBackendRes = analyzeExcuseMock(excuse);
+
+      // Validate mock output against Zod schema as well
+      const validated = InvestigateResponseSchema.parse(mockBackendRes);
+      return mapBackendResponseToCaseFile(excuse, validated);
     }
 
-    // Live AWS Lambda Function URL call
-    const endpoint = settings.lambdaEndpointUrl.trim();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (settings.apiKey.trim()) {
-      headers['Authorization'] = `Bearer ${settings.apiKey.trim()}`;
-    }
-
-    const payload = {
-      excuse: req.excuse,
-      caseId: req.caseId || `CASE-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-    };
-
+    // 2. Live HTTP Request
+    const baseUrl = getApiBaseUrl();
+    const endpoint = `${baseUrl}/investigate`;
     const startTime = Date.now();
-    let response: Response;
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
+
+    let response: Response;
     try {
       response = await fetch(endpoint, {
         method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ excuse }),
+        signal: controller.signal,
       });
     } catch (err: unknown) {
-      const isOffline = !navigator.onLine;
-      if (isOffline) {
-        throw new Error('OFFLINE: The precinct telegraph line is dead. Check your internet connection.');
+      clearTimeout(timeoutId);
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          throw new Error('The precinct telegraph timed out. The suspect vanished into the foggy night before forensics finished.');
+        }
+        if (!navigator.onLine) {
+          throw new Error('Telegraph wire severed: The precinct is offline. Check your internet connection.');
+        }
+        throw new Error(`Wire tapped: Failed to reach the crime lab at ${baseUrl}. Network severed or server offline.`);
       }
-      throw new Error(`CONNECTION_ERROR: Failed to reach the crime lab at ${endpoint}. Wire tapped or server offline.`);
+      throw new Error('An unexpected anomaly occurred during interrogation transmission.');
+    } finally {
+      clearTimeout(timeoutId);
     }
 
-    if (response.status === 429) {
-      throw new Error('RATE_LIMITED: The precinct telephone switchboard is completely overwhelmed. Take a breath and try again shortly.');
-    }
-
+    // Handle HTTP Errors: 400, 429, 500 return { error: string } written in detective's voice
     if (!response.ok) {
-      let errorMsg = `HTTP_${response.status}`;
+      let detectiveErrorMsg = '';
+
       try {
-        const errJson = await response.json();
-        errorMsg = errJson.message || errJson.error || errorMsg;
+        const errorJson = await response.json();
+        const parsed = BackendErrorSchema.safeParse(errorJson);
+        if (parsed.success && parsed.data.error) {
+          detectiveErrorMsg = parsed.data.error;
+        } else if (typeof errorJson?.error === 'string') {
+          detectiveErrorMsg = errorJson.error;
+        } else if (typeof errorJson?.message === 'string') {
+          detectiveErrorMsg = errorJson.message;
+        }
       } catch {
-        // fallback
+        // Body was not JSON
       }
-      throw new Error(`CRIME_LAB_ERROR (${response.status}): ${errorMsg}`);
+
+      if (!detectiveErrorMsg) {
+        if (response.status === 400) {
+          detectiveErrorMsg = "The suspect's statement was illegible or completely missing from the docket.";
+        } else if (response.status === 429) {
+          detectiveErrorMsg = "The precinct switchboard is flooded with panicked calls. Detectives are tied up on other cases.";
+        } else if (response.status === 500) {
+          detectiveErrorMsg = "The crime lab centrifuge overheated. Forensic analysis temporarily halted.";
+        } else {
+          detectiveErrorMsg = `The precinct encountered unexpected friction (HTTP ${response.status}).`;
+        }
+      }
+
+      throw new Error(detectiveErrorMsg);
     }
 
+    // Parse and validate with Zod
     const rawData = await response.json();
+    const parseResult = InvestigateResponseSchema.safeParse(rawData);
 
-    // Ensure response adheres to CaseFile shape; if partial, merge gracefully
-    const mockFallback = analyzeExcuseMock(req.excuse);
+    if (!parseResult.success) {
+      console.error('Backend Contract Validation Error:', parseResult.error.format());
+      throw new Error('Corrupted crime lab manifest: The forensic report does not match the department protocol.');
+    }
 
-    const caseFile: CaseFile = {
-      caseId: rawData.caseId || rawData.case_id || mockFallback.caseId,
-      timestamp: rawData.timestamp || mockFallback.timestamp,
-      suspectStatement: rawData.suspectStatement || rawData.excuse || req.excuse,
-      suspectAlias: rawData.suspectAlias || mockFallback.suspectAlias,
-      believabilityScore: typeof rawData.believabilityScore === 'number'
-        ? rawData.believabilityScore
-        : typeof rawData.score === 'number'
-        ? rawData.score
-        : mockFallback.believabilityScore,
-      verdict: {
-        classification: rawData.verdict?.classification || mockFallback.verdict.classification,
-        stampText: rawData.verdict?.stampText || rawData.verdict?.stamp || mockFallback.verdict.stampText,
-        summary: rawData.verdict?.summary || rawData.summary || mockFallback.verdict.summary,
-        secondaryTagline: rawData.verdict?.secondaryTagline || mockFallback.verdict.secondaryTagline,
-      },
-      metrics: {
-        plausibilityIndex: rawData.metrics?.plausibilityIndex ?? mockFallback.metrics.plausibilityIndex,
-        creativeEffort: rawData.metrics?.creativeEffort ?? mockFallback.metrics.creativeEffort,
-        audacityRating: rawData.metrics?.audacityRating ?? mockFallback.metrics.audacityRating,
-        clicheLevel: rawData.metrics?.clicheLevel ?? mockFallback.metrics.clicheLevel,
-      },
-      evidenceCards: Array.isArray(rawData.evidenceCards) && rawData.evidenceCards.length > 0
-        ? rawData.evidenceCards
-        : mockFallback.evidenceCards,
-      detectiveNotes: rawData.detectiveNotes || rawData.notes || mockFallback.detectiveNotes,
-      recommendedRebuttal: Array.isArray(rawData.recommendedRebuttal) && rawData.recommendedRebuttal.length > 0
-        ? rawData.recommendedRebuttal
-        : mockFallback.recommendedRebuttal,
-      investigatorBadge: rawData.investigatorBadge || mockFallback.investigatorBadge,
-      bureauSealNumber: rawData.bureauSealNumber || mockFallback.bureauSealNumber,
-    };
-
-    // Ensure min 1.2s feel even if the API responds in 100ms
+    // Guarantee minimum atmospheric display time (~1.2s)
     const elapsed = Date.now() - startTime;
     if (elapsed < 1200) {
       await new Promise((res) => setTimeout(res, 1200 - elapsed));
     }
 
-    return caseFile;
+    return mapBackendResponseToCaseFile(excuse, parseResult.data);
+  }
+
+  /**
+   * GET ${base}/shame
+   */
+  public static async getWallOfShame(): Promise<ShameResponse> {
+    if (isMockMode()) {
+      return getMockWallOfShame();
+    }
+
+    const baseUrl = getApiBaseUrl();
+    const endpoint = `${baseUrl}/shame`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        return getMockWallOfShame();
+      }
+
+      const raw = await response.json();
+      const parsed = ShameResponseSchema.safeParse(raw);
+      if (parsed.success) {
+        return parsed.data;
+      }
+      return getMockWallOfShame();
+    } catch {
+      return getMockWallOfShame();
+    }
   }
 }

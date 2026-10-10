@@ -12,6 +12,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useCaseStore } from '../../store/caseStore';
+import { getApiBaseUrl, isMockMode, ApiService } from '../../services/apiService';
 import { soundEffects } from '../../services/soundEffects';
 
 interface ApiSettingsModalProps {
@@ -23,65 +24,43 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { apiSettings, updateApiSettings } = useCaseStore();
-
-  const [useMock, setUseMock] = useState(apiSettings.useMockMode);
-  const [lambdaUrl, setLambdaUrl] = useState(apiSettings.lambdaEndpointUrl);
-  const [apiKey, setApiKey] = useState(apiSettings.apiKey);
-  const [delayMs, setDelayMs] = useState(apiSettings.simulatedDelayMs || 1400);
+  const { simulatedDelayMs, setSimulatedDelayMs } = useCaseStore();
+  const [delayMs, setDelayMs] = useState(simulatedDelayMs || 1400);
 
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testFeedback, setTestFeedback] = useState<string>('');
 
   if (!isOpen) return null;
 
+  const baseUrl = getApiBaseUrl();
+  const inMock = isMockMode();
+
   const handleSave = () => {
     soundEffects.playStampThud();
-    updateApiSettings({
-      useMockMode: useMock,
-      lambdaEndpointUrl: lambdaUrl.trim(),
-      apiKey: apiKey.trim(),
-      simulatedDelayMs: delayMs,
-    });
+    setSimulatedDelayMs(delayMs);
     onClose();
   };
 
   const handleTestConnection = async () => {
-    if (!lambdaUrl.trim()) {
-      setTestStatus('error');
-      setTestFeedback('Enter a valid AWS Lambda Function URL first.');
-      return;
-    }
-
     setTestStatus('testing');
-    setTestFeedback('Pinging AWS Lambda Function URL...');
+    setTestFeedback('Testing precinct communication lines...');
     soundEffects.playTypewriterKey();
 
     try {
-      const res = await fetch(lambdaUrl.trim(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(apiKey.trim() ? { Authorization: `Bearer ${apiKey.trim()}` } : {}),
-        },
-        body: JSON.stringify({
-          excuse: 'Test diagnostic ping from Excuse Forensics terminal.',
-          caseId: 'TEST-PING',
-        }),
-      });
-
-      if (res.ok) {
+      if (inMock) {
+        await new Promise((r) => setTimeout(r, 600));
         setTestStatus('success');
-        setTestFeedback('Connected! The Crime Lab AWS Lambda responded successfully.');
+        setTestFeedback('Mock Bureau is operational. Local forensics heuristics ready.');
         soundEffects.playTypewriterBell();
       } else {
-        setTestStatus('error');
-        setTestFeedback(`Endpoint returned HTTP ${res.status}. Check CORS or authentication.`);
-        soundEffects.playPolygraphTick();
+        const shame = await ApiService.getWallOfShame();
+        setTestStatus('success');
+        setTestFeedback(`Connected to live AWS Lambda! Retrieved ${shame.items.length} records from /shame.`);
+        soundEffects.playTypewriterBell();
       }
     } catch (err: unknown) {
       setTestStatus('error');
-      setTestFeedback('Connection failed. Verify CORS configuration on the Lambda Function URL.');
+      setTestFeedback(err instanceof Error ? err.message : 'Connection test failed.');
       soundEffects.playPolygraphTick();
     }
   };
@@ -104,10 +83,10 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
               <Sliders className="w-5 h-5 text-brass" />
               <div>
                 <h3 id="settings-title" className="font-typewriter font-bold text-base sm:text-lg text-ink-rich uppercase">
-                  Bureau Transmission Settings
+                  Bureau Transmission Status
                 </h3>
                 <p className="text-xs font-mono text-ink-faint">
-                  Configure Forensics Backend & Lambda URL
+                  Active Crime Lab Connection Details
                 </p>
               </div>
             </div>
@@ -122,117 +101,84 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
           </div>
 
           <div className="space-y-5 text-xs font-mono">
-            {/* Mode Selector */}
+            {/* Active Mode Display */}
             <div>
               <label className="block text-ink font-bold uppercase tracking-wider mb-2">
-                Forensics Engine Mode
+                Active Backend Engine
               </label>
 
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setUseMock(true)}
-                  className={`p-3 rounded border text-left flex flex-col gap-1 transition-all ${
-                    useMock
-                      ? 'border-brass bg-brass/10 text-ink'
-                      : 'border-paper-edge bg-paper text-ink-faint hover:text-ink'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <Sparkles className="w-4 h-4 text-brass" />
-                    <span>Mock Bureau</span>
+              <div className="p-3 rounded border border-paper-edge bg-paper/60 dark:bg-paper-dark/60 flex items-start gap-3">
+                <div className="p-2 rounded bg-paper-card border border-paper-edge text-brass mt-0.5">
+                  {inMock ? <Sparkles className="w-4 h-4" /> : <Server className="w-4 h-4 text-emerald-500" />}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-ink text-sm">
+                      {inMock ? 'Mock Bureau (Local Forensics)' : 'Live AWS Lambda Backend'}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        inMock
+                          ? 'bg-brass/15 text-brass'
+                          : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                      }`}
+                    >
+                      {inMock ? 'MOCK' : 'LIVE'}
+                    </span>
                   </div>
-                  <span className="text-[11px] font-sans text-ink-light">
-                    Built-in heuristic detective engine. Fast, reliable, zero cloud cost.
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setUseMock(false)}
-                  className={`p-3 rounded border text-left flex flex-col gap-1 transition-all ${
-                    !useMock
-                      ? 'border-evidence bg-evidence/10 text-ink'
-                      : 'border-paper-edge bg-paper text-ink-faint hover:text-ink'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <Server className="w-4 h-4 text-evidence" />
-                    <span>AWS Lambda Live</span>
-                  </div>
-                  <span className="text-[11px] font-sans text-ink-light">
-                    Calls your live AWS Lambda Function URL agent endpoint.
-                  </span>
-                </button>
+                  <p className="text-[11px] font-sans text-ink-light mt-1 leading-relaxed">
+                    {inMock
+                      ? 'Running with local rule-based heuristics. Activated when VITE_API_URL is empty or VITE_USE_MOCK=true.'
+                      : 'Connecting directly to rule-based AWS Lambda Function URL behind /investigate and /shame.'}
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* AWS Lambda URL Configuration */}
-            <div className={`space-y-3 transition-opacity ${useMock ? 'opacity-50' : 'opacity-100'}`}>
-              <div>
-                <label className="block text-ink font-semibold uppercase tracking-wider mb-1">
-                  AWS Lambda Function URL
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://abcdef123456.lambda-url.us-east-1.on.aws/"
-                  value={lambdaUrl}
-                  onChange={(e) => setLambdaUrl(e.target.value)}
-                  disabled={useMock}
-                  className="w-full px-3 py-2 text-xs font-mono bg-paper border border-paper-edge rounded focus:outline-none focus:border-brass text-ink placeholder:text-ink-faint/50"
-                />
-                <p className="text-[10px] text-ink-faint mt-1 font-sans">
-                  Ensure the Lambda Function URL has CORS enabled (Allow Origin: `*` or your domain, Methods: `POST, OPTIONS`).
-                </p>
+            {/* Base URL (Read-Only) */}
+            <div>
+              <label className="block text-ink font-semibold uppercase tracking-wider mb-1">
+                Base Endpoint URL (Environment)
+              </label>
+              <div className="px-3 py-2 text-xs font-mono bg-paper border border-paper-edge rounded text-ink break-all select-all">
+                {baseUrl || 'No VITE_API_URL configured (defaults to Mock Bureau)'}
               </div>
+              <p className="text-[10px] text-ink-faint mt-1 font-sans">
+                Zero configuration required by visitors. Bound automatically at build time via <code className="text-brass">VITE_API_URL</code>.
+              </p>
+            </div>
 
-              <div>
-                <label className="block text-ink font-semibold uppercase tracking-wider mb-1">
-                  Optional API Key / Authorization Token
-                </label>
-                <input
-                  type="password"
-                  placeholder="Bearer token or leave blank"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  disabled={useMock}
-                  className="w-full px-3 py-2 text-xs font-mono bg-paper border border-paper-edge rounded focus:outline-none focus:border-brass text-ink placeholder:text-ink-faint/50"
-                />
-              </div>
+            {/* Health Test */}
+            <div className="pt-1 border-t border-paper-edge/50">
+              <button
+                type="button"
+                onClick={handleTestConnection}
+                disabled={testStatus === 'testing'}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-paper-edge hover:border-brass text-ink font-mono text-xs transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${testStatus === 'testing' ? 'animate-spin' : ''}`} />
+                <span>Test Crime Lab Connection</span>
+              </button>
 
-              {!useMock && (
-                <div className="pt-1">
-                  <button
-                    type="button"
-                    onClick={handleTestConnection}
-                    disabled={testStatus === 'testing'}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-paper-edge hover:border-brass text-ink font-mono text-xs transition-colors"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${testStatus === 'testing' ? 'animate-spin' : ''}`} />
-                    <span>Test Endpoint Connection</span>
-                  </button>
-
-                  {testFeedback && (
-                    <div
-                      className={`mt-2 p-2 rounded border text-[11px] flex items-start gap-1.5 ${
-                        testStatus === 'success'
-                          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                          : 'border-evidence/40 bg-evidence/10 text-evidence'
-                      }`}
-                    >
-                      {testStatus === 'success' ? (
-                        <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                      ) : (
-                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                      )}
-                      <span>{testFeedback}</span>
-                    </div>
+              {testFeedback && (
+                <div
+                  className={`mt-2 p-2 rounded border text-[11px] flex items-start gap-1.5 ${
+                    testStatus === 'success'
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'border-evidence/40 bg-evidence/10 text-evidence'
+                  }`}
+                >
+                  {testStatus === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   )}
+                  <span>{testFeedback}</span>
                 </div>
               )}
             </div>
 
-            {/* Simulated Deliberation Delay */}
+            {/* Atmospheric Delay */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-ink font-semibold uppercase tracking-wider flex items-center gap-1">
@@ -251,7 +197,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
                 className="w-full accent-brass"
               />
               <span className="text-[10px] text-ink-faint block mt-0.5 font-sans">
-                Controls how long the detective takes to deliberate before slamming down the case verdict.
+                Controls the detective&apos;s pacing before slamming down the official case file.
               </span>
             </div>
           </div>
@@ -263,7 +209,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 rounded text-xs font-mono text-ink-faint hover:text-ink transition-colors"
             >
-              Cancel
+              Close
             </button>
 
             <button
@@ -272,7 +218,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
               className="inline-flex items-center gap-1.5 px-5 py-2 rounded bg-brass hover:bg-brass-light text-paper-dark font-mono text-xs font-bold uppercase tracking-wider shadow transition-all active:scale-95"
             >
               <ShieldCheck className="w-4 h-4" />
-              <span>Apply Settings</span>
+              <span>Save Preferences</span>
             </button>
           </div>
         </motion.div>

@@ -7,8 +7,8 @@ interface VerdictStampProps {
 }
 
 export const VerdictStamp: React.FC<VerdictStampProps> = ({ verdict }) => {
-  const isBusted = verdict.classification === 'BUSTED' || verdict.classification === 'HIGHLY_SUSPECT';
-  const isPlausible = verdict.classification === 'PLAUSIBLE' || verdict.classification === 'ALIBI_CONFIRMED';
+  const isBusted = verdict.classification === 'BUSTED';
+  const isPlausible = verdict.classification === 'PLAUSIBLE' || verdict.classification === 'CREDIBLE';
 
   const stampColorClass = isBusted
     ? 'text-evidence border-evidence'

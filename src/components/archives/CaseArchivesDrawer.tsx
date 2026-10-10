@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FolderArchive,
@@ -7,9 +7,13 @@ import {
   Search,
   Calendar,
   AlertTriangle,
+  Flame,
+  CornerDownLeft,
+  RefreshCw,
 } from 'lucide-react';
 import { useCaseStore } from '../../store/caseStore';
-import { CaseFile } from '../../types/case';
+import { CaseFile, ShameItem } from '../../types/case';
+import { ApiService } from '../../services/apiService';
 import { soundEffects } from '../../services/soundEffects';
 
 interface CaseArchivesDrawerProps {
@@ -26,16 +30,46 @@ export const CaseArchivesDrawer: React.FC<CaseArchivesDrawerProps> = ({
     loadCaseFromArchive,
     deleteFromArchives,
     clearArchives,
+    setDraftExcuse,
   } = useCaseStore();
 
+  const [activeTab, setActiveTab] = useState<'dossier' | 'shame'>('dossier');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterVerdict, setFilterVerdict] = useState<string>('ALL');
+
+  // Wall of Shame state (from GET ${base}/shame)
+  const [shameItems, setShameItems] = useState<ShameItem[]>([]);
+  const [isLoadingShame, setIsLoadingShame] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'shame') {
+      loadShameItems();
+    }
+  }, [isOpen, activeTab]);
+
+  const loadShameItems = async () => {
+    setIsLoadingShame(true);
+    try {
+      const data = await ApiService.getWallOfShame();
+      setShameItems(data.items);
+    } catch {
+      // fallback
+    } finally {
+      setIsLoadingShame(false);
+    }
+  };
 
   if (!isOpen) return null;
 
   const handleOpenCase = (c: CaseFile) => {
     soundEffects.playPaperSlide();
     loadCaseFromArchive(c);
+    onClose();
+  };
+
+  const handleSelectShameExcuse = (excuse: string) => {
+    soundEffects.playTypewriterKey();
+    setDraftExcuse(excuse);
     onClose();
   };
 
@@ -61,6 +95,12 @@ export const CaseArchivesDrawer: React.FC<CaseArchivesDrawerProps> = ({
     const matchesVerdict =
       filterVerdict === 'ALL' || c.verdict.classification === filterVerdict;
 
+    return matchesSearch && matchesVerdict;
+  });
+
+  const filteredShame = shameItems.filter((item) => {
+    const matchesSearch = item.excuse.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesVerdict = filterVerdict === 'ALL' || item.verdict === filterVerdict;
     return matchesSearch && matchesVerdict;
   });
 
@@ -93,10 +133,12 @@ export const CaseArchivesDrawer: React.FC<CaseArchivesDrawerProps> = ({
               <FolderArchive className="w-5 h-5 text-brass" />
               <div>
                 <h3 id="archives-title" className="font-typewriter font-bold text-base text-ink-rich uppercase">
-                  Precinct Case Archives
+                  Precinct Archives &amp; Records
                 </h3>
                 <p className="text-xs font-mono text-ink-faint">
-                  {archives.length} Total Cases Filed
+                  {activeTab === 'dossier'
+                    ? `${archives.length} Local Cases Stored`
+                    : `${shameItems.length} Public Entries on Wall of Shame`}
                 </p>
               </div>
             </div>
@@ -110,13 +152,40 @@ export const CaseArchivesDrawer: React.FC<CaseArchivesDrawerProps> = ({
             </button>
           </div>
 
+          {/* Tab Selector: Local Dossier vs Wall of Shame */}
+          <div className="grid grid-cols-2 border-b border-paper-edge text-xs font-mono">
+            <button
+              onClick={() => setActiveTab('dossier')}
+              className={`py-2.5 px-3 flex items-center justify-center gap-1.5 transition-colors border-r border-paper-edge ${
+                activeTab === 'dossier'
+                  ? 'bg-paper text-ink font-bold border-b-2 border-b-brass'
+                  : 'bg-paper/40 text-ink-faint hover:text-ink'
+              }`}
+            >
+              <FolderArchive className="w-3.5 h-3.5" />
+              <span>Local Dossier ({archives.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('shame')}
+              className={`py-2.5 px-3 flex items-center justify-center gap-1.5 transition-colors ${
+                activeTab === 'shame'
+                  ? 'bg-paper text-evidence font-bold border-b-2 border-b-evidence'
+                  : 'bg-paper/40 text-ink-faint hover:text-ink'
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5 text-evidence" />
+              <span>Wall of Shame (/shame)</span>
+            </button>
+          </div>
+
           {/* Search & Filter Bar */}
-          <div className="p-4 border-b border-paper-edge space-y-3 bg-paper/40 dark:bg-paper-dark/40">
+          <div className="p-3 sm:p-4 border-b border-paper-edge space-y-2.5 bg-paper/30 dark:bg-paper-dark/30">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
               <input
                 type="text"
-                placeholder="Search statements or case IDs..."
+                placeholder={activeTab === 'dossier' ? "Search statements or case IDs..." : "Filter Wall of Shame..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 text-xs font-mono bg-paper-card border border-paper-edge rounded focus:outline-none focus:border-brass text-ink placeholder:text-ink-faint"
@@ -124,78 +193,127 @@ export const CaseArchivesDrawer: React.FC<CaseArchivesDrawerProps> = ({
             </div>
 
             <div className="flex gap-1.5 overflow-x-auto pb-1 text-[11px] font-mono">
-              {['ALL', 'BUSTED', 'HIGHLY_SUSPECT', 'PLAUSIBLE'].map((tag) => (
+              {['ALL', 'BUSTED', 'SUSPICIOUS', 'PLAUSIBLE', 'CREDIBLE'].map((tag) => (
                 <button
                   key={tag}
                   onClick={() => setFilterVerdict(tag)}
-                  className={`px-2.5 py-1 rounded transition-colors whitespace-nowrap ${
+                  className={`px-2 py-0.5 rounded transition-colors whitespace-nowrap text-[10px] ${
                     filterVerdict === tag
                       ? 'bg-brass text-paper-dark font-bold'
                       : 'bg-paper-card border border-paper-edge text-ink-faint hover:text-ink'
                   }`}
                 >
-                  {tag.replace('_', ' ')}
+                  {tag}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Archive Files List */}
+          {/* Archive / Shame List Content */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {filteredCases.length === 0 ? (
-              <div className="text-center py-16 text-ink-faint space-y-2">
-                <AlertTriangle className="w-8 h-8 mx-auto text-brass/60" />
-                <p className="font-typewriter text-sm">No filed dossiers match your query.</p>
-                <p className="font-mono text-xs text-ink-faint/70">
-                  Submit an excuse on the intake desk to generate a record.
-                </p>
-              </div>
-            ) : (
-              filteredCases.map((c) => (
-                <div
-                  key={c.caseId}
-                  onClick={() => handleOpenCase(c)}
-                  className="p-3.5 bg-paper rounded border border-paper-edge hover:border-brass/70 cursor-pointer shadow-sm hover:shadow-folder transition-all group relative"
-                >
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="font-typewriter font-bold text-xs text-ink-rich">
-                      {c.caseId}
-                    </span>
-                    <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border border-evidence/40 text-evidence font-semibold">
-                      {c.verdict.stampText}
-                    </span>
-                  </div>
-
-                  <p className="font-mono text-xs text-ink-light line-clamp-2 mb-2 italic">
-                    &ldquo;{c.suspectStatement}&rdquo;
+            {activeTab === 'dossier' ? (
+              // LOCAL DOSSIER TAB
+              filteredCases.length === 0 ? (
+                <div className="text-center py-16 text-ink-faint space-y-2">
+                  <AlertTriangle className="w-8 h-8 mx-auto text-brass/60" />
+                  <p className="font-typewriter text-sm">No local case records found.</p>
+                  <p className="font-mono text-xs text-ink-faint/70">
+                    Interrogate an excuse on the intake desk to generate a docket.
                   </p>
-
-                  <div className="flex items-center justify-between text-[10px] font-mono text-ink-faint pt-1 border-t border-paper-edge/50">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {new Date(c.timestamp).toLocaleDateString()}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-brass font-bold">
-                        Score: {c.believabilityScore}/100
+                </div>
+              ) : (
+                filteredCases.map((c) => (
+                  <div
+                    key={c.caseId}
+                    onClick={() => handleOpenCase(c)}
+                    className="p-3.5 bg-paper rounded border border-paper-edge hover:border-brass/70 cursor-pointer shadow-sm hover:shadow-folder transition-all group relative"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="font-typewriter font-bold text-xs text-ink-rich">
+                        {c.caseId}
                       </span>
+                      <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border border-evidence/40 text-evidence font-semibold">
+                        {c.verdict.stampText}
+                      </span>
+                    </div>
+
+                    <p className="font-mono text-xs text-ink-light line-clamp-2 mb-2 italic">
+                      &ldquo;{c.suspectStatement}&rdquo;
+                    </p>
+
+                    <div className="flex items-center justify-between text-[10px] font-mono text-ink-faint pt-1 border-t border-paper-edge/50">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(c.timestamp).toLocaleDateString()}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-brass font-bold">
+                          Score: {c.believabilityScore}/100
+                        </span>
+                        <button
+                          onClick={(e) => handleDelete(e, c.caseId)}
+                          className="p-1 hover:text-evidence text-ink-faint transition-colors"
+                          title="Delete case record"
+                          aria-label="Delete case"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )
+            ) : (
+              // WALL OF SHAME TAB (from GET /shame)
+              isLoadingShame ? (
+                <div className="text-center py-16 text-ink-faint space-y-2">
+                  <RefreshCw className="w-6 h-6 mx-auto text-brass animate-spin" />
+                  <p className="font-mono text-xs">Retrieving Wall of Shame from precinct records...</p>
+                </div>
+              ) : filteredShame.length === 0 ? (
+                <div className="text-center py-16 text-ink-faint space-y-2">
+                  <Flame className="w-8 h-8 mx-auto text-evidence/60" />
+                  <p className="font-typewriter text-sm">No entries on the Wall of Shame.</p>
+                </div>
+              ) : (
+                filteredShame.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3.5 bg-paper rounded border border-paper-edge hover:border-evidence/60 shadow-sm transition-all"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-[10px] font-mono font-bold text-evidence uppercase tracking-wider flex items-center gap-1">
+                        <Flame className="w-3 h-3" />
+                        {item.verdict}
+                      </span>
+                      <span className="text-[10px] font-mono text-brass font-bold">
+                        Score: {item.believability}/100
+                      </span>
+                    </div>
+
+                    <p className="font-mono text-xs text-ink-rich mb-2.5 italic">
+                      &ldquo;{item.excuse}&rdquo;
+                    </p>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-paper-edge/50 text-[10px] font-mono text-ink-faint">
+                      <span>{new Date(item.createdAt).toLocaleDateString()}</span>
                       <button
-                        onClick={(e) => handleDelete(e, c.caseId)}
-                        className="p-1 hover:text-evidence text-ink-faint transition-colors"
-                        title="Delete case record"
-                        aria-label="Delete case"
+                        onClick={() => handleSelectShameExcuse(item.excuse)}
+                        className="inline-flex items-center gap-1 text-brass hover:text-ink font-semibold"
+                        title="Load this excuse onto interrogation desk"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Interrogate</span>
+                        <CornerDownLeft className="w-3 h-3" />
                       </button>
                     </div>
                   </div>
-                </div>
-              ))
+                ))
+              )
             )}
           </div>
 
           {/* Drawer Footer */}
-          {archives.length > 0 && (
+          {activeTab === 'dossier' && archives.length > 0 && (
             <div className="p-3 border-t border-paper-edge bg-paper/50 dark:bg-paper-dark/50 flex justify-between items-center">
               <span className="text-[11px] font-mono text-ink-faint">
                 Stored in local blotter
@@ -205,7 +323,7 @@ export const CaseArchivesDrawer: React.FC<CaseArchivesDrawerProps> = ({
                 className="text-xs font-mono text-evidence hover:underline flex items-center gap-1"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Purge Dossier</span>
+                <span>Purge Local Dossier</span>
               </button>
             </div>
           )}
